@@ -19,7 +19,7 @@ RUN pip3 install -r /opt/yoda-discover/requirements.txt
 EXPOSE 22
 
 ENV ETCD_BASE /yoda
-ENV DOCKER_URL http://172.17.42.1:8283
+ENV DOCKER_URL http://172.17.42.1:4243
 ENV ETC_HOST 172.17.42.1
 ENV ETCD_PORT 4001
 ENV PROXY_HOST 172.17.42.1

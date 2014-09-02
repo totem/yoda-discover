@@ -21,7 +21,7 @@ job_defaults = {
 }
 
 ETCD_BASE = os.environ.get('ETCD_BASE', '/yoda')
-DOCKER_URL = os.environ.get('DOCKER_URL', 'http://172.17.42.1:8283')
+DOCKER_URL = os.environ.get('DOCKER_URL', 'http://172.17.42.1:4243')
 ETCD_HOST = os.environ.get('ETCD_HOST', '172.17.42.1')
 ETCD_PORT = int(os.environ.get('ETCD_PORT', '4001'))
 PROXY_HOST = os.environ.get('PROXY_HOST', '172.17.42.1')
