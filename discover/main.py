@@ -7,16 +7,18 @@ import yoda
 import logging
 import json
 import time
+import datetime
 
 
-from apscheduler.executors.pool import ProcessPoolExecutor
+from apscheduler.executors.pool import ProcessPoolExecutor, ThreadPoolExecutor
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 
 __all__ = ['scheduler']
 
 executors = {
-    'processpool': ProcessPoolExecutor(4)
+    'threadpool': ThreadPoolExecutor(1),
+    'processpool': ProcessPoolExecutor(3)
 }
 
 job_defaults = {
@@ -33,6 +35,7 @@ PROXY_HOST = os.environ.get('PROXY_HOST', '172.17.42.1')
 LOG_FORMAT = '%(asctime)s [%(name)s] %(levelname)s %(message)s'
 LOG_DATE = '%Y-%m-%d %I:%M:%S %p'
 DOCKER_POLL_RESTART_SECONDS=10
+EVENT_JOB_ID_FILE = '/tmp/yoda-discover-poll.id'
 
 logging.basicConfig(format=LOG_FORMAT, datefmt=LOG_DATE, level=logging.WARN)
 
@@ -41,7 +44,7 @@ logger.level = logging.INFO
 
 
 
-scheduler = BlockingScheduler(executors=executors, job_defaults=job_defaults)
+scheduler = None
 
 docker_cl = docker.Client(
     base_url=DOCKER_URL,
@@ -88,13 +91,15 @@ def handle_discover(container_id):
 
 def handle_poll_event(event):
     event_dict = json.loads(event)
-    scheduler.add_job(handle_discover, args=[event_dict['id']])
+    scheduler.add_job(handle_discover, args=[event_dict['id']],
+                      executor='processpool')
 
 
 
 def docker_instances_poll():
     for container in docker_cl.containers(all=True):
-        scheduler.add_job(handle_discover, args=[container['Id']])
+        scheduler.add_job(handle_discover, args=[container['Id']],
+                          executor='processpool')
 
 def docker_event_poll():
     while(True):
@@ -113,9 +118,13 @@ def docker_event_poll():
             time.sleep(DOCKER_POLL_RESTART_SECONDS)
 
 
-
-
-#Instance Polling to capture an
-#scheduler.add_job(docker_instances_poll, trigger='cron', hour='*/1')
-scheduler.add_job(docker_event_poll)
-scheduler.start()
+if __name__ == "__main__":
+    scheduler = BlockingScheduler(executors=executors,
+                                  job_defaults=job_defaults)
+    #Instance Polling to capture an
+    #scheduler.add_job(docker_instances_poll, trigger='cron', hour='*/1')
+    #Run it as cron schedule (So that it restarts if it dies for any reason)
+    scheduler.add_job(docker_event_poll, trigger='cron', minute='*/15',
+                      next_run_time=datetime.datetime.now(),
+                      executor='threadpool')
+    scheduler.start()
