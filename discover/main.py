@@ -7,22 +7,11 @@ import yoda
 import logging
 import json
 import datetime
+import socket
 
 
 from apscheduler.executors.pool import ProcessPoolExecutor, ThreadPoolExecutor
 from apscheduler.schedulers.blocking import BlockingScheduler
-
-
-__all__ = ['scheduler']
-
-executors = {
-    'default': ThreadPoolExecutor(1),
-    'processpool': ProcessPoolExecutor(3)
-}
-
-job_defaults = {
-
-}
 
 
 ETCD_BASE = os.environ.get('ETCD_BASE', '/yoda')
@@ -30,10 +19,23 @@ DOCKER_URL = os.environ.get('DOCKER_URL', 'http://172.17.42.1:4243')
 ETCD_HOST = os.environ.get('ETCD_HOST', '172.17.42.1')
 ETCD_PORT = int(os.environ.get('ETCD_PORT', '4001'))
 PROXY_HOST = os.environ.get('PROXY_HOST', '172.17.42.1')
+DISCOVER_POOL_SIZE = int(os.environ.get('DISCOVER_POOL_SIZE', '3'))
 
 LOG_FORMAT = '%(asctime)s [%(name)s] %(levelname)s %(message)s'
 LOG_DATE = '%Y-%m-%d %I:%M:%S %p'
 DOCKER_POLL_RESTART_SECONDS=60
+
+executors = {
+    # Default Pool for event streaming and docker instances poll
+    'default': ThreadPoolExecutor(2),
+    # Process poll for inpsecting docker container and publishing to etcd.
+    'processpool': ProcessPoolExecutor(DISCOVER_POOL_SIZE)
+}
+
+job_defaults = {
+
+}
+
 
 logging.basicConfig(format=LOG_FORMAT, datefmt=LOG_DATE, level=logging.WARN)
 logger = logging.getLogger('yoda-discover')
@@ -62,31 +64,55 @@ def parse_container_env(env_cfg):
     return parsed_env
 
 
+def port_test(port, protocol='tcp', host=PROXY_HOST):
+    sock_type = socket.SOCK_DGRAM if protocol == 'udp' else socket.SOCK_STREAM
+    sock = socket.socket(socket.AF_INET, sock_type)
+    sock.settimeout(2000)
+    try:
+        sock.connect((host, port))
+        sock.shutdown(socket.SHUT_RDWR)
+        sock.close()
+        return True
+    except socket.error as error:
+        logger.warn('Port test failed for host: %s port: %s. Reason: %s',
+                    host, port, error)
+        return False
+
+
 def handle_discover(container_id):
     docker_cl = docker_client()
+    yoda_cl = yoda_client()
     container_info = docker_cl.inspect_container(container_id)
     if 'Config' in container_info and 'Env' in container_info['Config']:
         env_cfg = container_info['Config']['Env']
         parsed_env = parse_container_env(env_cfg)
 
-        if 'DISCOVER_CLUSTER_NAME' in parsed_env and \
+        if 'DISCOVER_APP_VERSION' in parsed_env and \
+                'DISCOVER_APP_NAME' in parsed_env and \
                 'DISCOVER_NODE_NAME' in parsed_env:
-            cluster = parsed_env['DISCOVER_CLUSTER_NAME']
+            app = parsed_env['DISCOVER_APP_NAME']
+            version = parsed_env['DISCOVER_APP_VERSION']
             node = parsed_env['DISCOVER_NODE_NAME']
             for port_key in container_info['Config']['ExposedPorts']:
-                private_port = port_key.split('/')[0]
-                upstream = '%s-%s' % (cluster, private_port)
+                private_port, protocol = port_key.split('/')
+                upstream = yoda.as_upstream(app, version, private_port)
 
                 if container_info['State']['Running']:
                     public_port = \
                         docker_cl.port(container_id,
                                        private_port)[0]['HostPort']
-                    endpoint = yoda.as_endpoint(PROXY_HOST, public_port)
-                    logger.info('Publishing %s : %s', node, endpoint)
-                    yoda_client().discover_node(upstream, node, endpoint)
+                    if port_test(int(public_port), protocol):
+                        endpoint = yoda.as_endpoint(PROXY_HOST, public_port)
+                        logger.info('Publishing %s : %s', node, endpoint)
+                        yoda_cl.discover_node(upstream, node, endpoint)
+                    else:
+                        logger.info('Removing failed node %s : %s',
+                                    upstream, node)
+                        yoda_cl.remove_node(upstream, node)
                 else:
-                    logger.info('Removing node %s : %s', upstream, node)
-                    yoda_client().remove_node(upstream, node)
+                    logger.info('Removing (Not running) node %s : %s',
+                                upstream, node)
+                    yoda_cl.remove_node(upstream, node)
 
 
 def schedule_discover_job(container_id):
@@ -98,6 +124,9 @@ def schedule_discover_job(container_id):
 
 
 
+@scheduler.scheduled_job(
+    trigger='cron', minute='*/1', next_run_time=datetime.datetime.now(),
+    misfire_grace_time=5, executor='default')
 def docker_instances_poll():
     for container in docker_client().containers():
         schedule_discover_job(container['Id'])
@@ -106,11 +135,11 @@ def docker_instances_poll():
 #Adding as a scheduled job so that it will automatically restart if docker
 #polling gets interrupted
 @scheduler.scheduled_job(
-    trigger='cron', minute='*/1', next_run_time=datetime.datetime.now(),
+    trigger='cron', hour='*/1', next_run_time=datetime.datetime.now(),
     misfire_grace_time=5, executor='default')
 def docker_event_poll():
     #Poll for all instances for first run (before event polling)
-    docker_instances_poll()
+    #docker_instances_poll()
     logger.info('Start polling for docker events....')
     for event in docker_client().events():
         logger.info('%s', event)
