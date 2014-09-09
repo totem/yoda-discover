@@ -31,7 +31,7 @@ def do_register(parsed_args, private_port, public_port):
                                 private_port)
     endpoint = yoda.as_endpoint(parsed_args.proxy_host, public_port)
     yoda_client(parsed_args).discover_node(upstream, parsed_args.node_name,
-                                endpoint)
+                                           endpoint)
 
 
 def do_unregister(parsed_args, private_port):
