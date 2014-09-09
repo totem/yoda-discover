@@ -24,5 +24,6 @@ ENV ETC_HOST 172.17.42.1
 ENV ETCD_PORT 4001
 ENV PROXY_HOST 172.17.42.1
 
+WORKDIR /opt/yoda-discover
 ENTRYPOINT ["/usr/bin/python3"]
 CMD ["/opt/yoda-discover/discover/main.py"]
