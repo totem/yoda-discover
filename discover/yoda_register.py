@@ -3,6 +3,7 @@ import os
 import yoda
 import argparse
 import docker
+import time
 
 from discover import logger, port_test, map_proxy_host
 from requests.exceptions import HTTPError
@@ -75,6 +76,7 @@ def docker_container_poll(parsed_args):
                                 parsed_args.node_name, public_port,
                                 private_port)
                     do_unregister(parsed_args, private_port)
+            time.sleep(45)
         else:
             logger.info('Stopping container poll (Main node is not running)%s',
                         parsed_args.node_name)

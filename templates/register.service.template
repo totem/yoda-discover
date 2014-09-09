@@ -1,0 +1,18 @@
+[Unit]
+Description={name}-{version}-%i Register
+BindsTo={name}-{version}-%i.service
+
+[Service]
+EnvironmentFile=/etc/environment
+[Service]
+Restart=always
+RestartSec=20s
+TimeoutStartSec=20m
+ExecStartPre=/usr/bin/docker pull totem/yoda-discover:{yoda_discover_tag}
+ExecStartPre=/bin/sh -xc "docker inspect {name}-register-{version}-%i 1>/dev/null 2>&1 && docker rm -f {name}-register-{version}-%i || true"
+ExecStart=/bin/sh -xc "/usr/bin/docker run {docker_args} -P  --rm  {docker_env} \
+          --name {name}-register-{version}-%i totem/yoda-discover:{yoda_discover_tag} /opt/yoda-discover/discover/register.py"
+ExecStop=/bin/sh -xc "docker inspect {name}-register-{version}-%i 1>/dev/null 2>&1 && docker rm -f {name}-register-{version}-%i || true"
+
+[X-Fleet]
+X-ConditionMachineOf={name}-{version}-%i.service
