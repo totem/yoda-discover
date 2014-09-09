@@ -29,6 +29,5 @@ def map_proxy_host(proxy_host):
     proxy_host = proxy_host.lower()
     if proxy_host.startswith('ec2:meta-data:'):
         meta_data = proxy_host.replace('ec2:meta-data:', '')
-        return boto.utils.get_instance_metadata(
-            data='meta-data/%s'%meta_data)[meta_data]
+        return boto.utils.get_instance_metadata()[meta_data]
     return proxy_host
