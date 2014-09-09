@@ -4,7 +4,6 @@ __author__ = 'sukrit'
 import docker
 import os
 import yoda
-import logging
 import json
 import datetime
 import socket
@@ -12,18 +11,17 @@ import socket
 
 from apscheduler.executors.pool import ProcessPoolExecutor, ThreadPoolExecutor
 from apscheduler.schedulers.blocking import BlockingScheduler
+from discover import logger, port_test
 
+
+DISCOVER_POOL_SIZE = int(os.environ.get('DISCOVER_POOL_SIZE', '3'))
+DOCKER_POLL_RESTART_SECONDS = 60
 
 ETCD_BASE = os.environ.get('ETCD_BASE', '/yoda')
 DOCKER_URL = os.environ.get('DOCKER_URL', 'http://172.17.42.1:4243')
 ETCD_HOST = os.environ.get('ETCD_HOST', '172.17.42.1')
 ETCD_PORT = int(os.environ.get('ETCD_PORT', '4001'))
 PROXY_HOST = os.environ.get('PROXY_HOST', '172.17.42.1')
-DISCOVER_POOL_SIZE = int(os.environ.get('DISCOVER_POOL_SIZE', '3'))
-
-LOG_FORMAT = '%(asctime)s [%(name)s] %(levelname)s %(message)s'
-LOG_DATE = '%Y-%m-%d %I:%M:%S %p'
-DOCKER_POLL_RESTART_SECONDS=60
 
 executors = {
     # Default Pool for event streaming and docker instances poll
@@ -35,11 +33,6 @@ executors = {
 job_defaults = {
 
 }
-
-
-logging.basicConfig(format=LOG_FORMAT, datefmt=LOG_DATE, level=logging.WARN)
-logger = logging.getLogger('yoda-discover')
-logger.level = logging.INFO
 
 scheduler = BlockingScheduler(executors=executors, job_defaults=job_defaults)
 
@@ -55,28 +48,12 @@ def yoda_client():
     return yoda.Client(etcd_host=ETCD_HOST, etcd_port=ETCD_PORT,
                        etcd_base=ETCD_BASE)
 
-
 def parse_container_env(env_cfg):
     parsed_env = dict()
     for env_entry in env_cfg:
         env_name, env_value = env_entry.split('=', 1)
         parsed_env[env_name] = env_value
     return parsed_env
-
-
-def port_test(port, protocol='tcp', host=PROXY_HOST):
-    sock_type = socket.SOCK_DGRAM if protocol == 'udp' else socket.SOCK_STREAM
-    sock = socket.socket(socket.AF_INET, sock_type)
-    sock.settimeout(2000)
-    try:
-        sock.connect((host, port))
-        sock.shutdown(socket.SHUT_RDWR)
-        sock.close()
-        return True
-    except socket.error as error:
-        logger.warn('Port test failed for host: %s port: %s. Reason: %s',
-                    host, port, error)
-        return False
 
 
 def handle_discover(container_id):
@@ -101,7 +78,7 @@ def handle_discover(container_id):
                     public_port = \
                         docker_cl.port(container_id,
                                        private_port)[0]['HostPort']
-                    if port_test(int(public_port), protocol):
+                    if port_test(int(public_port), PROXY_HOST, protocol):
                         endpoint = yoda.as_endpoint(PROXY_HOST, public_port)
                         logger.info('Publishing %s : %s', node, endpoint)
                         yoda_cl.discover_node(upstream, node, endpoint)
