@@ -11,6 +11,8 @@ from requests.exceptions import HTTPError
 import datetime
 import boto.utils
 
+#Polling interval in seconds
+DISCOVER_POLL_INTERVAL = 45
 
 def docker_client(parsed_args):
     return docker.Client(
@@ -76,7 +78,7 @@ def docker_container_poll(parsed_args):
                                 parsed_args.node_name, public_port,
                                 private_port)
                     do_unregister(parsed_args, private_port)
-            time.sleep(45)
+            time.sleep(DISCOVER_POLL_INTERVAL)
         else:
             logger.info('Stopping container poll (Main node is not running)%s',
                         parsed_args.node_name)

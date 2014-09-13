@@ -10,7 +10,10 @@ logging.basicConfig(format=LOG_FORMAT, datefmt=LOG_DATE, level=logging.WARN)
 logger = logging.getLogger('yoda-discover')
 logger.level = logging.INFO
 
+
 def port_test(port, host, protocol='tcp'):
+    if isinstance(port, str):
+        port = int(port)
     sock_type = socket.SOCK_DGRAM if protocol == 'udp' else socket.SOCK_STREAM
     sock = socket.socket(socket.AF_INET, sock_type)
     sock.settimeout(2000)
