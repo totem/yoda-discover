@@ -95,7 +95,7 @@ def update_route53(node_name, value, parsed_args):
     if len(records) > 0 and records[0].name == parsed_args.dns_record + '.' \
             and records[0].identifier == node_name:
         if len(records[0].resource_records) > 0 and \
-                records[0].resource_records[0].value == value:
+                records[0].resource_records[0] == value:
             logger.info('No change in Record %s. Skipping...',
                         parsed_args.dns_record)
         else:
