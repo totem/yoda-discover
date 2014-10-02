@@ -70,6 +70,14 @@ def get_sync_index(etcd_cl, etcd_base):
         None
 
 
+def remove_sync_index(etcd_cl, etcd_base):
+    sync_key = '%s/route53/sync-index/' % etcd_base
+    try:
+        etcd_cl.delete(sync_key)
+    except KeyError:
+        None
+
+
 def update_route53(node_name, value, parsed_args):
     conn = boto.connect_route53(
         aws_access_key_id=parsed_args.access_key_id,
@@ -148,6 +156,14 @@ def route53_sync(parsed_args):
         except ReadTimeoutError:
             logger.info('Did not receive any changes. Will restart polling...')
             continue
+        except etcd.EtcdException as etcd_error:
+            if str(etcd_error).lower().startswith(
+                    'the event in requested index is outdated and cleared'):
+                logger.warn('Wait Index is stale. Removing the waitIndex')
+                remove_sync_index(etcd_cl, parsed_args.etcd_base)
+                continue
+            else:
+                raise
 
         with ApplyLock(etcd_cl, parsed_args.etcd_base) as lock:
             if lock:
