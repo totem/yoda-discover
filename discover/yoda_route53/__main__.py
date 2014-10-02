@@ -7,6 +7,7 @@ import random
 import os
 
 from boto.route53.record import ResourceRecordSets
+from urllib3.exceptions import ReadTimeoutError
 import yoda
 import etcd
 import boto
@@ -135,14 +136,19 @@ def route53_sync(parsed_args):
         'key': proxy_nodes_key,
         'recursive': True,
         'wait': True,
-        'timeout': 0
+        'timeout': 300
     }
     while True:
         sync_index = get_sync_index(etcd_cl, parsed_args.etcd_base)
         if sync_index:
             etcd_args['waitIndex'] = int(sync_index) + 1
         logger.info('Watching for changes for %s', proxy_nodes_key)
-        result = etcd_cl.read(**etcd_args)
+        try:
+            result = etcd_cl.read(**etcd_args)
+        except ReadTimeoutError:
+            logger.info('Did not receive any changes. Will restart polling...')
+            continue
+
         with ApplyLock(etcd_cl, parsed_args.etcd_base) as lock:
             if lock:
                 sync_index = get_sync_index(etcd_cl, parsed_args.etcd_base)
