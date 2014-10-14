@@ -1,6 +1,7 @@
 import logging
 import socket
-import boto
+from boto.utils import get_instance_metadata
+
 
 LOG_FORMAT = '%(asctime)s [%(name)s] %(levelname)s %(message)s'
 LOG_DATE = '%Y-%m-%d %I:%M:%S %p'
@@ -32,5 +33,5 @@ def map_proxy_host(proxy_host):
     proxy_host = proxy_host.lower()
     if proxy_host.startswith('ec2:meta-data:'):
         meta_data = proxy_host.replace('ec2:meta-data:', '')
-        return boto.utils.get_instance_metadata()[meta_data]
+        return get_instance_metadata()[meta_data]
     return proxy_host

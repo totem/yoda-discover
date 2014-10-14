@@ -7,6 +7,7 @@ import random
 import os
 
 from boto.route53.record import ResourceRecordSets
+from urllib3.exceptions import ReadTimeoutError
 import yoda
 import etcd
 import boto
@@ -69,6 +70,14 @@ def get_sync_index(etcd_cl, etcd_base):
         None
 
 
+def remove_sync_index(etcd_cl, etcd_base):
+    sync_key = '%s/route53/sync-index/' % etcd_base
+    try:
+        etcd_cl.delete(sync_key)
+    except KeyError:
+        None
+
+
 def update_route53(node_name, value, parsed_args):
     conn = boto.connect_route53(
         aws_access_key_id=parsed_args.access_key_id,
@@ -85,7 +94,8 @@ def update_route53(node_name, value, parsed_args):
     change.add_value(value)
     if len(records) > 0 and records[0].name == parsed_args.dns_record + '.' \
             and records[0].identifier == node_name:
-        if records[0].value == value:
+        if len(records[0].resource_records) > 0 and \
+                records[0].resource_records[0] == value:
             logger.info('No change in Record %s. Skipping...',
                         parsed_args.dns_record)
         else:
@@ -134,14 +144,27 @@ def route53_sync(parsed_args):
         'key': proxy_nodes_key,
         'recursive': True,
         'wait': True,
-        'timeout': 0
+        'timeout': 300
     }
     while True:
         sync_index = get_sync_index(etcd_cl, parsed_args.etcd_base)
         if sync_index:
             etcd_args['waitIndex'] = int(sync_index) + 1
         logger.info('Watching for changes for %s', proxy_nodes_key)
-        result = etcd_cl.read(**etcd_args)
+        try:
+            result = etcd_cl.read(**etcd_args)
+        except ReadTimeoutError:
+            logger.info('Did not receive any changes. Will restart polling...')
+            continue
+        except etcd.EtcdException as etcd_error:
+            if str(etcd_error).lower().startswith(
+                    'the event in requested index is outdated and cleared'):
+                logger.warn('Wait Index is stale. Removing the waitIndex')
+                remove_sync_index(etcd_cl, parsed_args.etcd_base)
+                continue
+            else:
+                raise
+
         with ApplyLock(etcd_cl, parsed_args.etcd_base) as lock:
             if lock:
                 sync_index = get_sync_index(etcd_cl, parsed_args.etcd_base)
