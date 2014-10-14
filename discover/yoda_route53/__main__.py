@@ -183,20 +183,21 @@ if __name__ == "__main__":
 
     parser.add_argument(
         '--etcd-host', metavar='<ETCD_HOST>',
-        default='172.17.42.1',
+        default=os.environ.get('ETCD_HOST', '172.17.42.1'),
         help='Docker URL (defaults to 172.17.42.1)')
     parser.add_argument(
         '--etcd-port', metavar='<ETCD_PORT>',
-        default='4001', type=int,
+        default=os.environ.get('ETCD_PORT', '4001'), type=int,
         help='Docker URL (defaults to 4001)')
     parser.add_argument(
         '--etcd-base', metavar='<ETCD_BASE>',
-        default='/yoda',
+        default=os.environ.get('ETCD_BASE', '/yoda'),
         help='Yoda base key (defaults to /yoda)')
     parser.add_argument(
-        '--check-ports', metavar='<CHECK_PORTS>', default='4243',
+        '--check-ports', metavar='<CHECK_PORTS>',
+        default=os.environ.get('CHECK_PORTS', ''),
         help='Comma separated ports to be used for status check. '
-             'Defaults to 80')
+             'Defaults to empty')
     parser.add_argument(
         '--access-key-id', metavar='<AWS_ACCESS_KEY_ID>',
         default=os.environ.get('AWS_ACCESS_KEY_ID'),
@@ -208,18 +209,19 @@ if __name__ == "__main__":
     parser.add_argument(
         '--poll-interval', metavar='<POLL_INTERVAL">',
         help='Poll interval in seconds', type=int,
-        default=180)
+        default=os.environ.get('POLL_INTERVAL', '180'))
     parser.add_argument(
         '--dns-ttl', metavar='<ROUTE53_DNS_RECORD_TTL>', type=int,
-        help='DNS Record TTL in seconds. Defaults to 120.', default=60)
+        help='DNS Record TTL in seconds. Defaults to 60.',
+        default=os.environ.get('ROUTE53_DNS_RECORD_TTL', '60'))
     parser.add_argument(
         '--record-weight', metavar='<ROUTE53_DNS_RECORD_WEIGHT>', type=int,
         help='Weight of the dns record for this node. Defaults to 1',
-        default=1)
+        default=os.environ.get('ROUTE53_DNS_RECORD_WEIGHT', '1'))
     parser.add_argument(
         '--record-type', metavar='<ROUTE53_DNS_RECORD_TYPE>',
         help='Type of dns record (CNAME, A). Defaults to CNAME',
-        default='CNAME')
+        default=os.environ.get('ROUTE53_DNS_RECORD_TYPE', 'CNAME'))
     parser.add_argument(
         'zone_id', metavar='<ROUTE53_HOSTED_ZONE_ID>',
         help='Hosted zone id for route53.')

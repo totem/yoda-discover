@@ -27,13 +27,13 @@ def yoda_client(parsed_args):
                        etcd_base=parsed_args.etcd_base)
 
 
-def do_register(parsed_args, private_port, public_port):
+def do_register(parsed_args, private_port, public_port, mode):
     upstream = yoda.as_upstream(parsed_args.app_name,
                                 parsed_args.app_version,
                                 private_port)
     endpoint = yoda.as_endpoint(parsed_args.proxy_host, public_port)
     yoda_client(parsed_args).discover_node(upstream, parsed_args.node_name,
-                                           endpoint)
+                                           endpoint, mode=mode)
 
 
 def do_unregister(parsed_args, private_port):
@@ -71,7 +71,8 @@ def docker_container_poll(parsed_args):
                     logger.info('Publishing %s : %s',
                                 parsed_args.node_name,
                                 endpoint)
-                    do_register(parsed_args, private_port, public_port)
+                    do_register(parsed_args, private_port, public_port,
+                                parsed_args.proxy_mode)
 
                 else:
                     logger.info('Removing failed node %s:%s->%s',
@@ -90,25 +91,29 @@ if __name__ == "__main__":
         description='Registers nodes to Yoda Proxy')
     parser.add_argument(
         '--docker-url', metavar='<DOCKER_URL>',
-        default='http://172.17.42.1:4243',
+        default=os.environ.get('DOCKER_URL', 'http://172.17.42.1:4243'),
         help='Docker URL (defaults to http://172.17.42.1:4243)')
     parser.add_argument(
         '--etcd-host', metavar='<ETCD_HOST>',
-        default='172.17.42.1',
+        default=os.environ.get('ETCD_HOST', '172.17.42.1'),
         help='Docker URL (defaults to 172.17.42.1)')
     parser.add_argument(
         '--etcd-port', metavar='<ETCD_PORT>',
-        default='4001',type=int,
+        default=os.environ.get('ETCD_PORT', '4001'), type=int,
         help='Docker URL (defaults to 4001)')
     parser.add_argument(
         '--etcd-base', metavar='<ETCD_BASE>',
-        default='/yoda',
-        help='Docker URL (defaults to /yoda)')
+        default=os.environ.get('ETCD_BASE', '/yoda'),
+        help='Yoda base key (defaults to /yoda)')
     parser.add_argument(
         '--proxy-host', metavar='<PROXY_HOST>',
-        default='172.17.42.1',
+        default=os.environ.get('PROXY_HOST', '172.17.42.1'),
         help='Docker URL (defaults to 172.17.42.1. For ec2 , you can also use '
              'metadata. e.g.: ec2:metadata:public-hostname)')
+    parser.add_argument(
+        '--proxy-host', metavar='<PROXY_MODE>',
+        default=os.environ.get('PROXY_MODE', 'http'),
+        help='Proxy mode (http or tcp)')
 
     parser.add_argument(
         'app_name', metavar='<APPLICATION_NAME>', help='Application name')

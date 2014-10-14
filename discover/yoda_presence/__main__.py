@@ -35,7 +35,7 @@ def discover_proxy_nodes(parsed_ars):
     create_deregister_handler(parsed_args)
     while True:
         yoda_cl = yoda_client(parsed_args)
-        port_test_passed=True
+        port_test_passed = True
         for port in parsed_args.check_ports:
             if not port_test(port, parsed_args.proxy_host):
                 logger.warn("Port test failed for %s:%s",
@@ -62,18 +62,19 @@ if __name__ == "__main__":
 
     parser.add_argument(
         '--etcd-host', metavar='<ETCD_HOST>',
-        default='172.17.42.1',
+        default=os.environ.get('ETCD_HOST', '172.17.42.1'),
         help='Docker URL (defaults to 172.17.42.1)')
     parser.add_argument(
         '--etcd-port', metavar='<ETCD_PORT>',
-        default='4001', type=int,
+        default=os.environ.get('ETCD_PORT', '4001'), type=int,
         help='Docker URL (defaults to 4001)')
     parser.add_argument(
         '--etcd-base', metavar='<ETCD_BASE>',
-        default='/yoda',
+        default=os.environ.get('ETCD_BASE', '/yoda'),
         help='Yoda base key (defaults to /yoda)')
     parser.add_argument(
-        '--check-ports', metavar='<CHECK_PORTS>', default='4243',
+        '--check-ports', metavar='<CHECK_PORTS>',
+        default=os.environ.get('CHECK_PORTS', '80'),
         help='Comma separated ports to be used for status check. '
              'Defaults to 80')
     parser.add_argument(
