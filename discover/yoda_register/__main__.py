@@ -111,7 +111,7 @@ if __name__ == "__main__":
         help='Docker URL (defaults to 172.17.42.1. For ec2 , you can also use '
              'metadata. e.g.: ec2:metadata:public-hostname)')
     parser.add_argument(
-        '--proxy-host', metavar='<PROXY_MODE>',
+        '--proxy-mode', metavar='<PROXY_MODE>',
         default=os.environ.get('PROXY_MODE', 'http'),
         help='Proxy mode (http or tcp)')
 
