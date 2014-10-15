@@ -92,11 +92,13 @@ if __name__ == "__main__":
         help='Proxy host that needs to be registered.')
 
     parsed_args = parser.parse_args()
-    parsed_args.check_ports = parsed_args.check_ports.split(",")
     if parsed_args.check_ports:
-        parsed_args.check_ports.split(",")
+        parsed_args.check_ports = [valid_port for valid_port in
+                                   [port.strip() for port in
+                                    parsed_args.check_ports.split(",")]
+                                   if valid_port]
     else:
-        parsed_args.check_ports =[]
+        parsed_args.check_ports = []
 
     parsed_args.proxy_host = map_proxy_host(parsed_args.proxy_host)
     logger.info('Started yoda presence for  proxy node-> %s:%s',
