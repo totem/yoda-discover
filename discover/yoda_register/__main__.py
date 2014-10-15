@@ -1,3 +1,4 @@
+import json
 import os
 
 import yoda
@@ -60,19 +61,31 @@ def docker_container_poll(parsed_args):
         if container_info['State']['Running']:
             for port_key in container_info['Config']['ExposedPorts']:
                 private_port, protocol = port_key.split('/')
+                if parsed_args.discover_ports and \
+                        private_port not in parsed_args.discover_ports:
+                    logger.debug('Skip proxy for port %s', private_port)
+                    continue
 
-                public_port = \
+                docker_port = \
                     docker_cl.port(parsed_args.node_name,
-                                   private_port)[0]['HostPort']
+                                   private_port)
+                if docker_port:
+                    public_port = docker_port[0]['HostPort']
+                else:
+                    logger.info('Public port not found for %s. Skipping...',
+                                private_port)
+                    continue
                 if port_test(int(public_port), parsed_args.proxy_host,
                              protocol):
                     endpoint = yoda.as_endpoint(parsed_args.proxy_host,
                                                 public_port)
+                    proxy_mode = parsed_args.proxy_mode_mapping.get(
+                        private_port, 'http')
                     logger.info('Publishing %s : %s with mode:%s',
-                                parsed_args.node_name, endpoint,
-                                parsed_args.proxy_mode)
+                                parsed_args.node_name, endpoint, proxy_mode)
+
                     do_register(parsed_args, private_port, public_port,
-                                parsed_args.proxy_mode)
+                                proxy_mode)
 
                 else:
                     logger.info('Removing failed node %s:%s->%s',
@@ -111,9 +124,16 @@ if __name__ == "__main__":
         help='Docker URL (defaults to 172.17.42.1. For ec2 , you can also use '
              'metadata. e.g.: ec2:metadata:public-hostname)')
     parser.add_argument(
-        '--proxy-mode', metavar='<PROXY_MODE>',
-        default=os.environ.get('PROXY_MODE', 'http'),
-        help='Proxy mode (http or tcp)')
+        '--proxy-mode-mapping', metavar='<PROXY_MODE_MAPPING>',
+        default=os.environ.get('PROXY_MODE_MAPPING', ''),
+        help='Proxy mode mapping json using "key": "value" format where key '
+             'is container port and value is "tcp" or "http". '
+             'If mapping for port does not exists, http is used as default.')
+    parser.add_argument(
+        '--discover-ports', metavar='<DISCOVER_PORTS>',
+        default=os.environ.get('DISCOVER_PORTS', ''),
+        help='Comma separated container ports that needs to be discovered. If '
+             'empty all exposed ports are discovered ')
 
     parser.add_argument(
         'app_name', metavar='<APPLICATION_NAME>', help='Application name')
@@ -125,5 +145,18 @@ if __name__ == "__main__":
 
     parsed_args = parser.parse_args()
     parsed_args.proxy_host = map_proxy_host(parsed_args.proxy_host)
-    logger.info('Started discovery for %s', parsed_args.node_name)
+
+    if parsed_args.proxy_mode_mapping:
+        parsed_args.proxy_mode_mapping = json.loads(
+            parsed_args.proxy_mode_mapping)
+    else:
+        parsed_args.proxy_mode_mapping = {}
+
+    if parsed_args.discover_ports:
+        parsed_args.discover_ports = parsed_args.discover_ports.split(',')
+    else:
+        parsed_args.discover_ports = []
+
+    logger.info('Started discovery for %s using PROXY_MODE_MAPPING %r',
+                parsed_args.node_name, parsed_args.proxy_mode_mapping)
     docker_container_poll(parsed_args)
