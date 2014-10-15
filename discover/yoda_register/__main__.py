@@ -68,9 +68,9 @@ def docker_container_poll(parsed_args):
                              protocol):
                     endpoint = yoda.as_endpoint(parsed_args.proxy_host,
                                                 public_port)
-                    logger.info('Publishing %s : %s',
-                                parsed_args.node_name,
-                                endpoint)
+                    logger.info('Publishing %s : %s with mode:%s',
+                                parsed_args.node_name, endpoint,
+                                parsed_args.proxy_mode)
                     do_register(parsed_args, private_port, public_port,
                                 parsed_args.proxy_mode)
 
