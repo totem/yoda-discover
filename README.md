@@ -1,4 +1,6 @@
-yoda-discover
-=============
+# yoda-discover
 
-Service Discovery for Yoda Proxy
+Service Discovery for Yoda Proxy.
+
+## Docker Image
+totem/yoda-discover
