@@ -15,11 +15,19 @@ import boto.utils
 #Polling interval in seconds
 DISCOVER_POLL_INTERVAL = 45
 
+
 def docker_client(parsed_args):
     return docker.Client(
         base_url=parsed_args.docker_url,
         version='1.12',
         timeout=10)
+
+def parse_container_env(env_cfg):
+    parsed_env = dict()
+    for env_entry in env_cfg:
+        env_name, env_value = env_entry.split('=', 1)
+        parsed_env[env_name] = env_value
+    return parsed_env
 
 
 def yoda_client(parsed_args):
@@ -28,25 +36,49 @@ def yoda_client(parsed_args):
                        etcd_base=parsed_args.etcd_base)
 
 
-def do_register(parsed_args, private_port, public_port, mode):
-    upstream = yoda.as_upstream(parsed_args.app_name,
-                                parsed_args.app_version,
-                                private_port)
+def do_register(parsed_args, app_name, app_version, private_port, public_port,
+                mode):
+    upstream = yoda.as_upstream(app_name, app_version, private_port)
     endpoint = yoda.as_endpoint(parsed_args.proxy_host, public_port)
     yoda_client(parsed_args).discover_node(upstream, parsed_args.node_name,
                                            endpoint, mode=mode)
 
 
-def do_unregister(parsed_args, private_port):
-    upstream = yoda.as_upstream(parsed_args.app_name,
-                                parsed_args.app_version,
-                                private_port)
-    yoda_client(parsed_args).remove_node(upstream, parsed_args.node_name)
+def do_unregister(parsed_args, app_name, app_version, private_port):
+    upstream = yoda.as_upstream(app_name, app_version, private_port)
+    yoda_client(parsed_args).remove_node(upstream, app_name, app_version)
 
 
 def docker_container_poll(parsed_args):
+    docker_cl = docker_client(parsed_args)
+    try:
+        container_info = docker_cl.inspect_container(
+            parsed_args.node_name)
+    except HTTPError as error:
+        if error.response.status_code == 404:
+            logger.warn('Container with name %s could not be found. '
+                        'Aborting...', parsed_args.node_name)
+            return
+        else:
+            raise
+
+    env_cfg = container_info['Config']['Env']
+    parsed_env = parse_container_env(env_cfg)
+
+    if not 'DISCOVER_APP_VERSION' in parsed_env or \
+            not 'DISCOVER_APP_NAME' in parsed_env:
+        logger.warn('Discover env variables not set for container: %s. '
+                    'Aborting...', parsed_args.node_name)
+        return
+
+    app_name = parsed_env['DISCOVER_APP_NAME']
+    app_version = parsed_env['DISCOVER_APP_VERSION']
+    proxy_modes = parsed_env.get('DISCOVER_PROXY_MODES', '{}')
+    proxy_modes = json.loads(proxy_modes) if proxy_modes else {}
+    discover_ports = parsed_env.get('DISCOVER_PORTS', '')
+    discover_ports = discover_ports.split(',') if discover_ports else []
+
     while True:
-        docker_cl = docker_client(parsed_args)
         try:
             container_info = docker_cl.inspect_container(
                 parsed_args.node_name)
@@ -54,15 +86,14 @@ def docker_container_poll(parsed_args):
             if error.response.status_code == 404:
                 logger.warn('Container with name %s could not be found. '
                             'Aborting...', parsed_args.node_name)
-                break
+                return
             else:
                 raise
 
         if container_info['State']['Running']:
             for port_key in container_info['Config']['ExposedPorts']:
                 private_port, protocol = port_key.split('/')
-                if parsed_args.discover_ports and \
-                        private_port not in parsed_args.discover_ports:
+                if discover_ports and private_port not in discover_ports:
                     logger.debug('Skip proxy for port %s', private_port)
                     continue
 
@@ -79,19 +110,23 @@ def docker_container_poll(parsed_args):
                              protocol):
                     endpoint = yoda.as_endpoint(parsed_args.proxy_host,
                                                 public_port)
-                    proxy_mode = parsed_args.proxy_mode_mapping.get(
-                        private_port, 'http')
+                    proxy_mode = proxy_modes.get(private_port, 'http')
+                    if proxy_mode not in ['http', 'tcp']:
+                        logger.warn('Invalid proxy mode found for %s: %s.'
+                                    'Skipping...', private_port, proxy_mode)
+                        continue
                     logger.info('Publishing %s : %s with mode:%s',
                                 parsed_args.node_name, endpoint, proxy_mode)
 
-                    do_register(parsed_args, private_port, public_port,
-                                proxy_mode)
+                    do_register(parsed_args, app_name, app_version,
+                                private_port, public_port, proxy_mode)
 
                 else:
                     logger.info('Removing failed node %s:%s->%s',
                                 parsed_args.node_name, public_port,
                                 private_port)
-                    do_unregister(parsed_args, private_port)
+                    do_unregister(parsed_args, app_name, app_version,
+                                  private_port)
             time.sleep(DISCOVER_POLL_INTERVAL)
         else:
             logger.info('Stopping container poll (Main node is not running)%s',
@@ -123,40 +158,12 @@ if __name__ == "__main__":
         default=os.environ.get('PROXY_HOST', '172.17.42.1'),
         help='Docker URL (defaults to 172.17.42.1. For ec2 , you can also use '
              'metadata. e.g.: ec2:metadata:public-hostname)')
-    parser.add_argument(
-        '--proxy-mode-mapping', metavar='<PROXY_MODE_MAPPING>',
-        default=os.environ.get('PROXY_MODE_MAPPING', ''),
-        help='Proxy mode mapping json using "key": "value" format where key '
-             'is container port and value is "tcp" or "http". '
-             'If mapping for port does not exists, http is used as default.')
-    parser.add_argument(
-        '--discover-ports', metavar='<DISCOVER_PORTS>',
-        default=os.environ.get('DISCOVER_PORTS', ''),
-        help='Comma separated container ports that needs to be discovered. If '
-             'empty all exposed ports are discovered ')
 
     parser.add_argument(
-        'app_name', metavar='<APPLICATION_NAME>', help='Application name')
-    parser.add_argument(
-        'app_version', metavar='<APPLICATION_VERSION>',
-        help='Application Version')
-    parser.add_argument(
-        'node_name', metavar='<NODE_NAME>', help='Node Name')
+        'node_name', metavar='<NODE_NAME>', help='Node Name (Container Name)')
 
     parsed_args = parser.parse_args()
     parsed_args.proxy_host = map_proxy_host(parsed_args.proxy_host)
 
-    if parsed_args.proxy_mode_mapping:
-        parsed_args.proxy_mode_mapping = json.loads(
-            parsed_args.proxy_mode_mapping)
-    else:
-        parsed_args.proxy_mode_mapping = {}
-
-    if parsed_args.discover_ports:
-        parsed_args.discover_ports = parsed_args.discover_ports.split(',')
-    else:
-        parsed_args.discover_ports = []
-
-    logger.info('Started discovery for %s using PROXY_MODE_MAPPING %r',
-                parsed_args.node_name, parsed_args.proxy_mode_mapping)
+    logger.info('Started discovery for %s', parsed_args.node_name)
     docker_container_poll(parsed_args)
