@@ -76,7 +76,9 @@ def docker_container_poll(parsed_args):
     proxy_modes = parsed_env.get('DISCOVER_PROXY_MODES', '{}')
     proxy_modes = json.loads(proxy_modes) if proxy_modes else {}
     discover_ports = parsed_env.get('DISCOVER_PORTS', '')
-    discover_ports = discover_ports.split(',') if discover_ports else []
+    discover_ports = [valid_port for valid_port in
+                      [port.strip() for port in discover_ports.split(',')]
+                      if valid_port]
 
     while True:
         try:
