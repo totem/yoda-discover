@@ -9,11 +9,9 @@ import time
 from discover import logger, port_test, map_proxy_host
 from requests.exceptions import HTTPError
 
-import datetime
-import boto.utils
-
 #Polling interval in seconds
 DISCOVER_POLL_INTERVAL = 45
+DEPLOYMENT_BLUE_GREEN = 'blue-green'
 
 
 def docker_client(parsed_args):
@@ -21,6 +19,7 @@ def docker_client(parsed_args):
         base_url=parsed_args.docker_url,
         version='1.12',
         timeout=10)
+
 
 def parse_container_env(env_cfg):
     parsed_env = dict()
@@ -37,15 +36,22 @@ def yoda_client(parsed_args):
 
 
 def do_register(parsed_args, app_name, app_version, private_port, public_port,
-                mode):
-    upstream = yoda.as_upstream(app_name, app_version, private_port)
+                proxy_mode, deployment_mode):
+    use_version = None if deployment_mode == DEPLOYMENT_BLUE_GREEN \
+        else app_version
+    upstream = yoda.as_upstream(app_name, private_port,
+                                app_version=use_version)
     endpoint = yoda.as_endpoint(parsed_args.proxy_host, public_port)
     yoda_client(parsed_args).discover_node(upstream, parsed_args.node_name,
-                                           endpoint, mode=mode)
+                                           endpoint, mode=proxy_mode)
 
 
-def do_unregister(parsed_args, app_name, app_version, private_port):
-    upstream = yoda.as_upstream(app_name, app_version, private_port)
+def do_unregister(parsed_args, app_name, app_version, private_port,
+                  deployment_mode):
+    use_version = None if deployment_mode == DEPLOYMENT_BLUE_GREEN \
+        else app_version
+    upstream = yoda.as_upstream(app_name, private_port,
+                                app_version=use_version)
     yoda_client(parsed_args).remove_node(upstream, app_name, app_version)
 
 
@@ -74,6 +80,7 @@ def docker_container_poll(parsed_args):
     app_name = parsed_env['DISCOVER_APP_NAME']
     app_version = parsed_env['DISCOVER_APP_VERSION']
     proxy_modes = parsed_env.get('DISCOVER_PROXY_MODES', '{}')
+    deployment_mode = parsed_env.get('DISCOVER_MODE', 'blue-green').lower()
     proxy_modes = json.loads(proxy_modes) if proxy_modes else {}
     discover_ports = parsed_env.get('DISCOVER_PORTS', '')
     discover_ports = [valid_port for valid_port in
@@ -121,14 +128,15 @@ def docker_container_poll(parsed_args):
                                 parsed_args.node_name, endpoint, proxy_mode)
 
                     do_register(parsed_args, app_name, app_version,
-                                private_port, public_port, proxy_mode)
+                                private_port, public_port, proxy_mode,
+                                deployment_mode)
 
                 else:
                     logger.info('Removing failed node %s:%s->%s',
                                 parsed_args.node_name, public_port,
                                 private_port)
                     do_unregister(parsed_args, app_name, app_version,
-                                  private_port)
+                                  private_port, deployment_mode)
             time.sleep(DISCOVER_POLL_INTERVAL)
         else:
             logger.info('Stopping container poll (Main node is not running)%s',
