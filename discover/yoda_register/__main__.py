@@ -37,8 +37,8 @@ def yoda_client(parsed_args):
 
 def do_register(parsed_args, app_name, app_version, private_port, public_port,
                 proxy_mode, deployment_mode):
-    use_version = None if deployment_mode == DEPLOYMENT_BLUE_GREEN \
-        else app_version
+    use_version = app_version if deployment_mode == DEPLOYMENT_BLUE_GREEN \
+        else None
     upstream = yoda.as_upstream(app_name, private_port,
                                 app_version=use_version)
     endpoint = yoda.as_endpoint(parsed_args.proxy_host, public_port)
@@ -48,8 +48,8 @@ def do_register(parsed_args, app_name, app_version, private_port, public_port,
 
 def do_unregister(parsed_args, app_name, app_version, private_port,
                   deployment_mode):
-    use_version = None if deployment_mode == DEPLOYMENT_BLUE_GREEN \
-        else app_version
+    use_version = app_version if deployment_mode == DEPLOYMENT_BLUE_GREEN \
+        else None
     upstream = yoda.as_upstream(app_name, private_port,
                                 app_version=use_version)
     yoda_client(parsed_args).remove_node(upstream, app_name, app_version)
