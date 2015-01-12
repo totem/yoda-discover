@@ -67,7 +67,7 @@ def get_sync_index(etcd_cl, etcd_base):
     try:
         return int(etcd_cl.read(sync_key, consistent=True).value)
     except KeyError:
-        None
+        pass
 
 
 def remove_sync_index(etcd_cl, etcd_base):
@@ -75,7 +75,7 @@ def remove_sync_index(etcd_cl, etcd_base):
     try:
         etcd_cl.delete(sync_key)
     except KeyError:
-        None
+        pass
 
 
 def update_route53(node_name, value, parsed_args):
@@ -157,10 +157,15 @@ def route53_sync(parsed_args):
             logger.info('Did not receive any changes. Will restart polling...')
             continue
         except etcd.EtcdException as etcd_error:
-            if str(etcd_error).lower().startswith(
+            etcd_msg = str(etcd_error).lower()
+            if etcd_msg.startswith(
                     'the event in requested index is outdated and cleared'):
                 logger.warn('Wait Index is stale. Removing the waitIndex')
                 remove_sync_index(etcd_cl, parsed_args.etcd_base)
+                continue
+            elif etcd_msg.startswith('unable to decode server response:'):
+                # Let the job retry after 5s. This seems intermittent issue.
+                time.sleep(5)
                 continue
             else:
                 raise
