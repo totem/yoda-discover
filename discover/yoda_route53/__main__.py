@@ -162,6 +162,8 @@ def route53_sync(parsed_args):
                     'the event in requested index is outdated and cleared'):
                 logger.warn('Wait Index is stale. Removing the waitIndex')
                 remove_sync_index(etcd_cl, parsed_args.etcd_base)
+                # Adding a sleep to prevent high cpu during infinite looping.
+                time.sleep(5)
                 continue
             elif etcd_msg.startswith('unable to decode server response:'):
                 # Let the job retry after 5s. This seems intermittent issue.
