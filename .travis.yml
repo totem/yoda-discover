@@ -1,0 +1,16 @@
+language: python
+python:
+  - "3.4"
+
+# command to install dependencies
+install:
+  - "pip install -r requirements.txt"
+  - "pip install -r dev-requirements.txt"
+
+# commands to run tests and style check
+script:
+  - flake8 .
+  - nosetests --with-coverage --cover-erase --cover-branches --cover-package=yoda
+
+after_success:
+  - coveralls

@@ -1,17 +1,15 @@
 __author__ = 'sukrit'
 
-
 import docker
 import os
 import yoda
 import json
 import datetime
-import socket
-
 
 from apscheduler.executors.pool import ProcessPoolExecutor, ThreadPoolExecutor
 from apscheduler.schedulers.blocking import BlockingScheduler
-from discover import logger, port_test
+from discover import logger
+from discover.util import port_test
 
 
 DISCOVER_POOL_SIZE = int(os.environ.get('DISCOVER_POOL_SIZE', '3'))
@@ -30,9 +28,7 @@ executors = {
     'processpool': ProcessPoolExecutor(DISCOVER_POOL_SIZE)
 }
 
-job_defaults = {
-
-}
+job_defaults = {}
 
 scheduler = BlockingScheduler(executors=executors, job_defaults=job_defaults)
 
@@ -47,6 +43,7 @@ def docker_client():
 def yoda_client():
     return yoda.Client(etcd_host=ETCD_HOST, etcd_port=ETCD_PORT,
                        etcd_base=ETCD_BASE)
+
 
 def parse_container_env(env_cfg):
     parsed_env = dict()
@@ -100,7 +97,6 @@ def schedule_discover_job(container_id):
                       next_run_time=datetime.datetime.now())
 
 
-
 @scheduler.scheduled_job(
     trigger='cron', minute='*/1', next_run_time=datetime.datetime.now(),
     misfire_grace_time=5, executor='default')
@@ -109,14 +105,14 @@ def docker_instances_poll():
         schedule_discover_job(container['Id'])
 
 
-#Adding as a scheduled job so that it will automatically restart if docker
-#polling gets interrupted
+# Adding as a scheduled job so that it will automatically restart if docker
+# polling gets interrupted
 @scheduler.scheduled_job(
     trigger='cron', hour='*/1', next_run_time=datetime.datetime.now(),
     misfire_grace_time=5, executor='default')
 def docker_event_poll():
-    #Poll for all instances for first run (before event polling)
-    #docker_instances_poll()
+    # Poll for all instances for first run (before event polling)
+    # docker_instances_poll()
     logger.info('Start polling for docker events....')
     for event in docker_client().events():
         logger.info('%s', event)

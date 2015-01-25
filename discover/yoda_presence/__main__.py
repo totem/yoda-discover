@@ -1,10 +1,10 @@
-from discover import map_proxy_host
+from discover.util import port_test, map_proxy_host
 
 __author__ = 'sukrit'
 
 import os
 import argparse
-from discover import logger, map_proxy_host, port_test
+from discover import logger
 import random
 import sys
 import yoda

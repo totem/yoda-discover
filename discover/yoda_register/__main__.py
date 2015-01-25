@@ -6,10 +6,12 @@ import argparse
 import docker
 import time
 
-from discover import logger, port_test, map_proxy_host
+from discover import logger
 from requests.exceptions import HTTPError
 
-#Polling interval in seconds
+from discover.util import map_proxy_host, health_test
+
+# Polling interval in seconds
 DISCOVER_POLL_INTERVAL = 45
 DEPLOYMENT_BLUE_GREEN = 'blue-green'
 
@@ -36,14 +38,14 @@ def yoda_client(parsed_args):
 
 
 def do_register(parsed_args, app_name, app_version, private_port, public_port,
-                proxy_mode, deployment_mode):
+                deployment_mode):
     use_version = app_version if deployment_mode == DEPLOYMENT_BLUE_GREEN \
         else None
     upstream = yoda.as_upstream(app_name, private_port,
                                 app_version=use_version)
     endpoint = yoda.as_endpoint(parsed_args.proxy_host, public_port)
     yoda_client(parsed_args).discover_node(upstream, parsed_args.node_name,
-                                           endpoint, mode=proxy_mode)
+                                           endpoint)
 
 
 def do_unregister(parsed_args, app_name, app_version, private_port,
@@ -55,49 +57,38 @@ def do_unregister(parsed_args, app_name, app_version, private_port,
     yoda_client(parsed_args).remove_node(upstream, app_name, app_version)
 
 
-def docker_container_poll(parsed_args):
-    docker_cl = docker_client(parsed_args)
+def get_container_info(docker_cl, node_name):
     try:
-        container_info = docker_cl.inspect_container(
-            parsed_args.node_name)
+        return docker_cl.inspect_container(node_name)
     except HTTPError as error:
         if error.response.status_code == 404:
             logger.warn('Container with name %s could not be found. '
                         'Aborting...', parsed_args.node_name)
-            return
+            return None
         else:
             raise
 
-    env_cfg = container_info['Config']['Env']
-    parsed_env = parse_container_env(env_cfg)
 
-    if not 'DISCOVER_APP_VERSION' in parsed_env or \
-            not 'DISCOVER_APP_NAME' in parsed_env:
-        logger.warn('Discover env variables not set for container: %s. '
-                    'Aborting...', parsed_args.node_name)
+def docker_container_poll(parsed_args):
+    docker_cl = docker_client(parsed_args)
+    container_info = get_container_info(docker_cl, parsed_args.node_name)
+    if not container_info:
         return
 
-    app_name = parsed_env['DISCOVER_APP_NAME']
-    app_version = parsed_env['DISCOVER_APP_VERSION']
-    proxy_modes = parsed_env.get('DISCOVER_PROXY_MODES', '{}')
-    deployment_mode = parsed_env.get('DISCOVER_MODE', 'blue-green').lower()
-    proxy_modes = json.loads(proxy_modes) if proxy_modes else {}
-    discover_ports = parsed_env.get('DISCOVER_PORTS', '')
+    app_name = parsed_args.discover_app_name
+    app_version = parsed_args.discover_app_version
+    health_checks = parsed_args.discover_health
+    deployment_mode = parsed_args.discover_mode.lower()
+    health_checks = json.loads(health_checks) if health_checks else {}
+    discover_ports = parsed_args.discover_ports
     discover_ports = [valid_port for valid_port in
                       [port.strip() for port in discover_ports.split(',')]
                       if valid_port]
 
     while True:
-        try:
-            container_info = docker_cl.inspect_container(
-                parsed_args.node_name)
-        except HTTPError as error:
-            if error.response.status_code == 404:
-                logger.warn('Container with name %s could not be found. '
-                            'Aborting...', parsed_args.node_name)
-                return
-            else:
-                raise
+        container_info = get_container_info(docker_cl, parsed_args.node_name)
+        if not container_info:
+            return
 
         if container_info['State']['Running']:
             for port_key in container_info['Config']['ExposedPorts']:
@@ -115,21 +106,17 @@ def docker_container_poll(parsed_args):
                     logger.info('Public port not found for %s. Skipping...',
                                 private_port)
                     continue
-                if port_test(int(public_port), parsed_args.proxy_host,
-                             protocol):
+                health_check = health_checks.get(private_port, {})
+                if health_test(int(public_port), parsed_args.proxy_host,
+                               protocol=protocol, **health_check):
                     endpoint = yoda.as_endpoint(parsed_args.proxy_host,
                                                 public_port)
-                    proxy_mode = proxy_modes.get(private_port, 'http')
-                    if proxy_mode not in ['http', 'tcp']:
-                        logger.warn('Invalid proxy mode found for %s: %s.'
-                                    'Skipping...', private_port, proxy_mode)
-                        continue
-                    logger.info('Publishing %s : %s with mode:%s',
-                                parsed_args.node_name, endpoint, proxy_mode)
+
+                    logger.info('Publishing %s : %s',
+                                parsed_args.node_name, endpoint)
 
                     do_register(parsed_args, app_name, app_version,
-                                private_port, public_port, proxy_mode,
-                                deployment_mode)
+                                private_port, public_port, deployment_mode)
 
                 else:
                     logger.info('Removing failed node %s:%s->%s',
@@ -168,6 +155,38 @@ if __name__ == "__main__":
         default=os.environ.get('PROXY_HOST', '172.17.42.1'),
         help='Docker URL (defaults to 172.17.42.1. For ec2 , you can also use '
              'metadata. e.g.: ec2:metadata:public-hostname)')
+    parser.add_argument(
+        '--discover-ports', metavar='<DISCOVER_PORTS>',
+        default=os.environ.get('DISCOVER_PORTS', ''),
+        help='Comma separated ports to be used for discovery (e.g: 8080,8090)')
+    parser.add_argument(
+        '--discover-app-name', metavar='<DISCOVER_APP_NAME>',
+        default=os.environ.get('DISCOVER_APP_NAME', '<app-not-set>'),
+        help='Application name to be used for discovery.')
+    parser.add_argument(
+        '--discover-app-version', metavar='<DISCOVER_APP_VERSION>',
+        default=os.environ.get('DISCOVER_APP_VERSION', None),
+        help='Application version to be used for discovery.')
+    parser.add_argument(
+        '--discover-mode', metavar='<DISCOVER_MODE>',
+        default=os.environ.get('DISCOVER_MODE', 'blue-green'),
+        help='Discover mode (blue-green, red-green, a/b)')
+    parser.add_argument(
+        '--discover-health', metavar='<DISCOVER_HEALTH>',
+        default=os.environ.get('DISCOVER_HEALTH', '{}'),
+        help='JSON object defining the attributes for passive health check.'
+             'e.g.: ' + '''
+             {
+                "8080": {
+                    "uri": "/health",
+                    "timeout": "5s"
+                },
+                "8081": {
+                    "uri": "/",
+                    "timeout": "5s"
+                }
+             }
+        ''')
 
     parser.add_argument(
         'node_name', metavar='<NODE_NAME>', help='Node Name (Container Name)')
