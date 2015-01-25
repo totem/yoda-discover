@@ -75,12 +75,15 @@ def docker_container_poll(parsed_args):
     if not container_info:
         return
 
-    app_name = parsed_args.discover_app_name
-    app_version = parsed_args.discover_app_version
-    health_checks = parsed_args.discover_health
-    deployment_mode = parsed_args.discover_mode.lower()
+    env_cfg = container_info['Config']['Env']
+    parsed_env = parse_container_env(env_cfg)
+
+    app_name = parsed_env.get('DISCOVER_APP_NAME', 'not-set')
+    app_version = parsed_env.get('DISCOVER_APP_VERSION')
+    health_checks = parsed_env.get('DISCOVER_HEALTH', '{}')
+    deployment_mode = parsed_env.get('DISCOVER_MODE', 'blue-green').lower()
     health_checks = json.loads(health_checks) if health_checks else {}
-    discover_ports = parsed_args.discover_ports
+    discover_ports = parsed_env.get('DISCOVER_PORTS', '')
     discover_ports = [valid_port for valid_port in
                       [port.strip() for port in discover_ports.split(',')]
                       if valid_port]
@@ -155,38 +158,6 @@ if __name__ == "__main__":
         default=os.environ.get('PROXY_HOST', '172.17.42.1'),
         help='Docker URL (defaults to 172.17.42.1. For ec2 , you can also use '
              'metadata. e.g.: ec2:metadata:public-hostname)')
-    parser.add_argument(
-        '--discover-ports', metavar='<DISCOVER_PORTS>',
-        default=os.environ.get('DISCOVER_PORTS', ''),
-        help='Comma separated ports to be used for discovery (e.g: 8080,8090)')
-    parser.add_argument(
-        '--discover-app-name', metavar='<DISCOVER_APP_NAME>',
-        default=os.environ.get('DISCOVER_APP_NAME', '<app-not-set>'),
-        help='Application name to be used for discovery.')
-    parser.add_argument(
-        '--discover-app-version', metavar='<DISCOVER_APP_VERSION>',
-        default=os.environ.get('DISCOVER_APP_VERSION', None),
-        help='Application version to be used for discovery.')
-    parser.add_argument(
-        '--discover-mode', metavar='<DISCOVER_MODE>',
-        default=os.environ.get('DISCOVER_MODE', 'blue-green'),
-        help='Discover mode (blue-green, red-green, a/b)')
-    parser.add_argument(
-        '--discover-health', metavar='<DISCOVER_HEALTH>',
-        default=os.environ.get('DISCOVER_HEALTH', '{}'),
-        help='JSON object defining the attributes for passive health check.'
-             'e.g.: ' + '''
-             {
-                "8080": {
-                    "uri": "/health",
-                    "timeout": "5s"
-                },
-                "8081": {
-                    "uri": "/",
-                    "timeout": "5s"
-                }
-             }
-        ''')
 
     parser.add_argument(
         'node_name', metavar='<NODE_NAME>', help='Node Name (Container Name)')
