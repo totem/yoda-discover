@@ -12,7 +12,7 @@ install:
 # commands to run tests and style check
 script:
   - flake8 .
-  - nosetests --with-coverage --cover-erase --cover-branches --cover-package=yoda
+  - nosetests --with-coverage --cover-erase --cover-branches --cover-package=discover
 
 after_success:
   - coveralls
