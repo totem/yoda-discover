@@ -49,12 +49,12 @@ def do_register(parsed_args, app_name, app_version, private_port, public_port,
 
 
 def do_unregister(parsed_args, app_name, app_version, private_port,
-                  deployment_mode):
+                  deployment_mode, node_name):
     use_version = app_version if deployment_mode == DEPLOYMENT_BLUE_GREEN \
         else None
     upstream = yoda.as_upstream(app_name, private_port,
                                 app_version=use_version)
-    yoda_client(parsed_args).remove_node(upstream, app_name, app_version)
+    yoda_client(parsed_args).remove_node(upstream, node_name)
 
 
 def get_container_info(docker_cl, node_name):
@@ -126,7 +126,8 @@ def docker_container_poll(parsed_args):
                                 parsed_args.node_name, public_port,
                                 private_port)
                     do_unregister(parsed_args, app_name, app_version,
-                                  private_port, deployment_mode)
+                                  private_port, deployment_mode,
+                                  parsed_args.node_name)
             time.sleep(DISCOVER_POLL_INTERVAL)
         else:
             logger.info('Stopping container poll (Main node is not running)%s',
