@@ -186,7 +186,7 @@ def route53_sync(parsed_args, should_poll=None):
                     continue
                 else:
                     node_name = os.path.basename(result.key)
-                    if result.action in ('delete', 'expire'):
+                    if result.action not in ('delete', 'expire'):
                         update_route53(node_name, result.value, parsed_args)
                     else:
                         delete_route53(node_name, parsed_args)
