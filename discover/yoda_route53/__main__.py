@@ -132,10 +132,13 @@ def delete_route53(node_name, parsed_args):
                     'identifier:%s', parsed_args.dns_record, node_name)
 
 
-def route53_sync(parsed_args):
+def route53_sync(parsed_args, should_poll=None):
     """
     Syncs yoda proxy nodes with route53 based on parsed arguments.
     :param parsed_args: Parsed arguments
+    :param should_poll: Lambda or function that evaluates if polling should
+        continue. Added for ease of unit testing
+    :type should_poll: function
     :return: None
     """
     etcd_cl = etcd_client(parsed_args)
@@ -146,7 +149,8 @@ def route53_sync(parsed_args):
         'wait': True,
         'timeout': 300
     }
-    while True:
+    should_poll = should_poll or (lambda: True)
+    while should_poll():
         sync_index = get_sync_index(etcd_cl, parsed_args.etcd_base)
         if sync_index:
             etcd_args['waitIndex'] = int(sync_index) + 1
@@ -180,7 +184,7 @@ def route53_sync(parsed_args):
                     continue
                 else:
                     node_name = os.path.basename(result.key)
-                    if result.action != 'delete':
+                    if result.action in ('delete', 'expire'):
                         update_route53(node_name, result.value, parsed_args)
                     else:
                         delete_route53(node_name, parsed_args)
