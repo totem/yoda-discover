@@ -154,8 +154,8 @@ def route53_sync(parsed_args, should_poll=None):
         sync_index = get_sync_index(etcd_cl, parsed_args.etcd_base)
         if sync_index:
             etcd_args['waitIndex'] = int(sync_index) + 1
-        elif etcd_cl.get('waitIndex'):
-            del(etcd_cl['waitIndex'])
+        elif etcd_args.get('waitIndex'):
+            del(etcd_args['waitIndex'])
         logger.info('Watching for changes for %s', proxy_nodes_key)
         try:
             result = etcd_cl.read(**etcd_args)
