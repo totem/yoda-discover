@@ -1,5 +1,5 @@
 from collections import namedtuple
-from mock import patch, MagicMock
+from mock import patch
 from nose.tools import eq_
 from discover.yoda_route53.__main__ import route53_sync
 
