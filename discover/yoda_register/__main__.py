@@ -38,23 +38,14 @@ def yoda_client(parsed_args):
 
 
 def do_register(parsed_args, app_name, app_version, private_port, public_port,
-                deployment_mode):
+                deployment_mode, ttl):
     use_version = app_version if deployment_mode == DEPLOYMENT_BLUE_GREEN \
         else None
     upstream = yoda.as_upstream(app_name, private_port,
                                 app_version=use_version)
     endpoint = yoda.as_endpoint(parsed_args.proxy_host, public_port)
     yoda_client(parsed_args).discover_node(upstream, parsed_args.node_name,
-                                           endpoint)
-
-
-def do_unregister(parsed_args, app_name, app_version, private_port,
-                  deployment_mode, node_name):
-    use_version = app_version if deployment_mode == DEPLOYMENT_BLUE_GREEN \
-        else None
-    upstream = yoda.as_upstream(app_name, private_port,
-                                app_version=use_version)
-    yoda_client(parsed_args).remove_node(upstream, node_name)
+                                           endpoint, ttl=ttl)
 
 
 def get_container_info(docker_cl, node_name):
@@ -87,6 +78,12 @@ def docker_container_poll(parsed_args):
     discover_ports = [valid_port for valid_port in
                       [port.strip() for port in discover_ports.split(',')]
                       if valid_port]
+    poll_interval = int(parsed_env.get('DISCOVER_POLL_INTERVAL',
+                                       DISCOVER_POLL_INTERVAL))
+
+    # Set default ttl to 4 times the poll_interval (plus buffer) which
+    # gives 4 chances for bad node to survive bad health test
+    discover_ttl = int(parsed_env.get('DISCOVER_TTL', poll_interval*4+10))
 
     while True:
         container_info = get_container_info(docker_cl, parsed_args.node_name)
@@ -119,16 +116,14 @@ def docker_container_poll(parsed_args):
                                 parsed_args.node_name, endpoint)
 
                     do_register(parsed_args, app_name, app_version,
-                                private_port, public_port, deployment_mode)
+                                private_port, public_port, deployment_mode,
+                                ttl=discover_ttl)
 
                 else:
-                    logger.info('Removing failed node %s:%s->%s',
+                    logger.warn('Health check failed for node %s:%s->%s',
                                 parsed_args.node_name, public_port,
                                 private_port)
-                    do_unregister(parsed_args, app_name, app_version,
-                                  private_port, deployment_mode,
-                                  parsed_args.node_name)
-            time.sleep(DISCOVER_POLL_INTERVAL)
+            time.sleep(poll_interval)
         else:
             logger.info('Stopping container poll (Main node is not running)%s',
                         parsed_args.node_name)
