@@ -1,5 +1,5 @@
 from collections import namedtuple
-from mock import patch
+from mock import patch, MagicMock
 from nose.tools import eq_
 from discover.yoda_route53.__main__ import route53_sync
 
@@ -15,7 +15,8 @@ def create_mock_args(etcd_host='mockhost', etcd_port=4001, etcd_base='/'):
 @patch('etcd.Client')
 def test_route53_sync_with_no_polling(m_etcd_cl, m_yoda_cl, m_route53):
     # Given: Polling function that returns false
-    should_poll = lambda: False
+    should_poll = MagicMock()
+    should_poll.return_value = False
 
     # And: Mock parsed arguments
     parsed_args = create_mock_args()

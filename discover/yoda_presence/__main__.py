@@ -1,7 +1,5 @@
 from discover.util import port_test, map_proxy_host
 
-__author__ = 'sukrit'
-
 import os
 import argparse
 from discover import logger
@@ -10,6 +8,8 @@ import sys
 import yoda
 import time
 import signal
+
+__author__ = 'sukrit'
 
 
 def yoda_client(parsed_args):
