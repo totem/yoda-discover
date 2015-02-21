@@ -31,7 +31,7 @@ def create_deregister_handler(parsed_args):
     signal.signal(signal.SIGINT, handler)
 
 
-def discover_proxy_nodes(parsed_ars):
+def discover_proxy_nodes(parsed_args):
     create_deregister_handler(parsed_args)
     while True:
         yoda_cl = yoda_client(parsed_args)
@@ -56,7 +56,7 @@ def discover_proxy_nodes(parsed_ars):
         time.sleep(parsed_args.poll_interval)
 
 
-if __name__ == "__main__":
+def create_parser():
     parser = argparse.ArgumentParser(
         description='Registers proxy nodes to etcd')
 
@@ -91,6 +91,11 @@ if __name__ == "__main__":
         'proxy_host', metavar='<PROXY_HOST>',
         help='Proxy host that needs to be registered.')
 
+    return parser
+
+
+def main():
+    parser = create_parser()
     parsed_args = parser.parse_args()
     if parsed_args.check_ports:
         parsed_args.check_ports = [valid_port for valid_port in
@@ -104,3 +109,8 @@ if __name__ == "__main__":
     logger.info('Started yoda presence for  proxy node-> %s:%s',
                 parsed_args.node_name, parsed_args.proxy_host)
     discover_proxy_nodes(parsed_args)
+
+
+if __name__ == "__main__":
+    main()
+
