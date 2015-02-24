@@ -48,13 +48,22 @@ def do_register(parsed_args, app_name, app_version, private_port, public_port,
                                            endpoint, ttl=ttl)
 
 
+def renew_upstream(parsed_args, app_name, app_version, private_port,
+                   deployment_mode, ttl=3600):
+    use_version = app_version if deployment_mode == DEPLOYMENT_BLUE_GREEN \
+        else None
+    upstream = yoda.as_upstream(app_name, private_port,
+                                app_version=use_version)
+    yoda_client(parsed_args).renew_upstream(upstream, ttl=ttl)
+
+
 def get_container_info(docker_cl, node_name):
     try:
         return docker_cl.inspect_container(node_name)
     except HTTPError as error:
         if error.response.status_code == 404:
             logger.warn('Container with name %s could not be found. '
-                        'Aborting...', parsed_args.node_name)
+                        'Aborting...', node_name)
             return None
         else:
             raise
@@ -84,6 +93,7 @@ def docker_container_poll(parsed_args):
     # Set default ttl to 4 times the poll_interval (plus buffer) which
     # gives 4 chances for bad node to survive bad health test
     discover_ttl = int(parsed_env.get('DISCOVER_TTL', poll_interval*4+10))
+    upstream_ttl = int(parsed_env.get('DISCOVER_UPSTREAM_TTL', '3600'))
 
     while True:
         container_info = get_container_info(docker_cl, parsed_args.node_name)
@@ -106,6 +116,9 @@ def docker_container_poll(parsed_args):
                     logger.info('Public port not found for %s. Skipping...',
                                 private_port)
                     continue
+                # Renew upstream (Whether health check fail or passes)
+                renew_upstream(parsed_args, app_name, app_version,
+                               private_port, deployment_mode, ttl=upstream_ttl)
                 health_check = health_checks.get(private_port, {})
                 if health_test(int(public_port), parsed_args.proxy_host,
                                protocol=protocol, **health_check):
@@ -130,7 +143,7 @@ def docker_container_poll(parsed_args):
             break
 
 
-if __name__ == "__main__":
+def create_parser():
     parser = argparse.ArgumentParser(
         description='Registers nodes to Yoda Proxy')
     parser.add_argument(
@@ -154,12 +167,18 @@ if __name__ == "__main__":
         default=os.environ.get('PROXY_HOST', '172.17.42.1'),
         help='Docker URL (defaults to 172.17.42.1. For ec2 , you can also use '
              'metadata. e.g.: ec2:metadata:public-hostname)')
-
     parser.add_argument(
         'node_name', metavar='<NODE_NAME>', help='Node Name (Container Name)')
+    return parser
 
+
+def main():
+    parser = create_parser()
     parsed_args = parser.parse_args()
     parsed_args.proxy_host = map_proxy_host(parsed_args.proxy_host)
 
     logger.info('Started discovery for %s', parsed_args.node_name)
     docker_container_poll(parsed_args)
+
+if __name__ == "__main__":
+    main()
