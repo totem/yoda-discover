@@ -57,7 +57,7 @@ def test_health_when_uri_is_specified(murlopen):
 
     # Then: http health test is performed
     eq_(healthy, True)
-    murlopen.assert_called_once_with('http://mockhost:8080/test', None, 2000)
+    murlopen.assert_called_once_with('http://mockhost:8080/test', None, 2)
 
 
 @patch('discover.util.urlopen')
@@ -69,7 +69,7 @@ def test_health_when_uri_and_timeout_is_specified(murlopen):
 
     # Then: http health test is performed
     eq_(healthy, True)
-    murlopen.assert_called_once_with('http://mockhost:8080/test', None, 60000)
+    murlopen.assert_called_once_with('http://mockhost:8080/test', None, 60)
 
 
 @patch('discover.util.socket')
@@ -92,8 +92,7 @@ def test_http_when_urlopen_fails(murlopen):
 
     # Then: http test returns false
     eq_(healthy, False)
-    murlopen.assert_called_once_with('http://mockhost:8080/health', None,
-                                     2000)
+    murlopen.assert_called_once_with('http://mockhost:8080/health', None, 2)
 
 
 @patch('discover.util.socket')
