@@ -30,7 +30,7 @@ def port_test(port, host, protocol='tcp', timeout_ms=DEFAULT_TIMEOUT_MS):
 def http_test(port, host, path='/health', timeout_ms=DEFAULT_TIMEOUT_MS):
     check_url = 'http://%s:%s%s' % (host, port, path)
     try:
-        urlopen(check_url, None, timeout_ms)
+        urlopen(check_url, None, timeout_ms/1000)
         return True
     except:
         logger.exception("Deployment test failed for %s", check_url)
