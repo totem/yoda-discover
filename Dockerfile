@@ -3,7 +3,8 @@ FROM totem/python-base:3.4-trusty-b2
 ENV DEBIAN_FRONTEND noninteractive
 
 RUN apt-get update --fix-missing && apt-get install -y \
-        libyaml-dev  \
+        libyaml-dev \
+        libffi-dev \
     && apt-get clean \
     && rm -rf /var/cache/apt/archives/* /var/lib/apt/lists/*
 
