@@ -126,4 +126,3 @@ def init_shutdown_handler(cleanup=None, args=None, kwargs=None):
         sys.exit(0)
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
-
