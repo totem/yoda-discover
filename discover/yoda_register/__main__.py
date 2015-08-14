@@ -9,7 +9,7 @@ import time
 from discover import logger
 from requests.exceptions import HTTPError
 
-from discover.util import map_proxy_host, health_test, ShutdownSafeScheduler
+from discover.util import map_proxy_host, health_test, init_shutdown_handler
 
 # Polling interval in seconds
 DISCOVER_POLL_INTERVAL = 45
@@ -180,8 +180,8 @@ def main():
     parsed_args = parser.parse_args()
     parsed_args.proxy_host = map_proxy_host(parsed_args.proxy_host)
 
-    ShutdownSafeScheduler().schedule_and_wait(
-        docker_container_poll, parsed_args)
+    init_shutdown_handler()
+    docker_container_poll(parsed_args)
 
 
 if __name__ == "__main__":

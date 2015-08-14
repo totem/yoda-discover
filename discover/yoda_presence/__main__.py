@@ -1,4 +1,4 @@
-from discover.util import port_test, map_proxy_host, ShutdownSafeScheduler
+from discover.util import port_test, map_proxy_host, init_shutdown_handler
 
 import os
 import argparse
@@ -17,16 +17,16 @@ def yoda_client(parsed_args):
                        etcd_base=parsed_args.etcd_base)
 
 
+def on_delete(parsed_args):
+    yoda_cl = yoda_client(parsed_args)
+    logger.info("Removing proxy node on exit %s", parsed_args.node_name)
+    yoda_cl.remove_proxy_node(parsed_args.node_name)
+
+
 def discover_proxy_nodes(parsed_args, poll=None):
     logger.info('Started discovery for proxy node: %s', parsed_args.node_name)
-    poll = poll or (lambda cleanup: True)
-    yoda_cl = yoda_client(parsed_args)
-
-    def on_delete():
-        logger.info("Removing proxy node on exit %s", parsed_args.node_name)
-        yoda_cl.remove_proxy_node(parsed_args.node_name)
-
-    while poll(cleanup=on_delete):
+    poll = poll or (lambda: True)
+    while poll():
         yoda_cl = yoda_client(parsed_args)
         port_test_passed = True
         for port in parsed_args.check_ports:
@@ -99,8 +99,8 @@ def main():
         parsed_args.check_ports = []
 
     parsed_args.proxy_host = map_proxy_host(parsed_args.proxy_host)
-    ShutdownSafeScheduler().schedule_and_wait(
-        discover_proxy_nodes, parsed_args)
+    init_shutdown_handler(on_delete, args=(parsed_args,))
+    discover_proxy_nodes(parsed_args)
 
 
 if __name__ == "__main__":

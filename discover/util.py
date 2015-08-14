@@ -1,11 +1,9 @@
 import socket
 import re
 import signal
-from threading import Thread
 from urllib.request import urlopen
 from boto.utils import get_instance_metadata
 import sys
-import time
 from discover import logger
 
 __author__ = 'sukrit'
@@ -115,39 +113,17 @@ def map_proxy_host(proxy_host):
     return proxy_host
 
 
-class ShutdownSafeScheduler:
-    _should_poll = True
-    _running = True
+def init_shutdown_handler(cleanup=None, args=None, kwargs=None):
 
-    def __init__(self, check_interval_sec=DEFAULT_SHUTDOWN_POLL_SECONDS):
-        self.check_interval_sec = check_interval_sec
-        signal.signal(signal.SIGTERM, self._shutdown)
-        signal.signal(signal.SIGINT, self._shutdown)
-
-    def _shutdown(self, _signo, _stack_frame):
-        # Raises SystemExit(0):
-        self._should_poll = False
-        logger.info('Shutdown received.')
-        while self._running:
-            logger.info('Waiting for scheduler to finish')
-            time.sleep(self.check_interval_sec)
-        logger.info('Shutdown handler exiting application')
-        sys.exit(0)
-
-    def poll(self, cleanup=None):
+    def shutdown(_signo, _stack_frame):
+        logger.info('Shutdown cleanup started.')
         if cleanup:
             try:
-                cleanup()
+                cleanup(*(args or []), **(kwargs or {}))
             except:
                 logger.exception('An error occurred during cleanup')
-        if not self._should_poll:
-            logger.info('Scheduler finished...')
-            self._running = False
-        return self._should_poll
+        logger.info('Shutdown cleanup complete. Exiting with status 0')
+        sys.exit(0)
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
 
-    def schedule_and_wait(self, target, *args, **kwargs):
-        kwargs.setdefault('poll', self.poll)
-        th = Thread(target=target, args=args, kwargs=kwargs)
-        th.start()
-        logger.info('Waiting for: {}'.format(target.__name__))
-        th.join()

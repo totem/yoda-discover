@@ -2,7 +2,6 @@
 Syncs yoda etcd proxy nodes with route53
 """
 import argparse
-from threading import Thread
 import time
 import random
 import os
@@ -14,7 +13,7 @@ import etcd
 import boto
 
 from discover import logger
-from discover.util import ShutdownSafeScheduler
+from discover.util import init_shutdown_handler
 
 
 def etcd_client(parsed_args):
@@ -270,6 +269,5 @@ if __name__ == "__main__":
 
     parsed_args = parser.parse_args()
     parsed_args.check_ports = parsed_args.check_ports.split(',')
-    ShutdownSafeScheduler().schedule_and_wait(route53_sync, parsed_args)
-
-
+    init_shutdown_handler()
+    route53_sync(parsed_args)
