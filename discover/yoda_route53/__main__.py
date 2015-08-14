@@ -149,7 +149,7 @@ def route53_sync(parsed_args, poll=None):
         'key': proxy_nodes_key,
         'recursive': True,
         'wait': True,
-        'timeout': 60
+        'timeout': 120
     }
     poll = poll or (lambda: True)
     while poll():
