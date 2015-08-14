@@ -13,6 +13,7 @@ import etcd
 import boto
 
 from discover import logger
+from discover.util import init_shutdown_handler
 
 
 def etcd_client(parsed_args):
@@ -132,7 +133,7 @@ def delete_route53(node_name, parsed_args):
                     'identifier:%s', parsed_args.dns_record, node_name)
 
 
-def route53_sync(parsed_args, should_poll=None):
+def route53_sync(parsed_args, poll=None):
     """
     Syncs yoda proxy nodes with route53 based on parsed arguments.
     :param parsed_args: Parsed arguments
@@ -141,16 +142,17 @@ def route53_sync(parsed_args, should_poll=None):
     :type should_poll: function
     :return: None
     """
+    logger.info('Started sync for yoda proxy nodes with route53')
     etcd_cl = etcd_client(parsed_args)
     proxy_nodes_key = '%s/%s' % (parsed_args.etcd_base, 'proxy-nodes')
     etcd_args = {
         'key': proxy_nodes_key,
         'recursive': True,
         'wait': True,
-        'timeout': 300
+        'timeout': 120
     }
-    should_poll = should_poll or (lambda: True)
-    while should_poll():
+    poll = poll or (lambda: True)
+    while poll():
         sync_index = get_sync_index(etcd_cl, parsed_args.etcd_base)
         if sync_index:
             etcd_args['waitIndex'] = int(sync_index) + 1
@@ -267,5 +269,5 @@ if __name__ == "__main__":
 
     parsed_args = parser.parse_args()
     parsed_args.check_ports = parsed_args.check_ports.split(',')
-    logger.info('Started sync for yoda proxy nodes with route53')
+    init_shutdown_handler()
     route53_sync(parsed_args)

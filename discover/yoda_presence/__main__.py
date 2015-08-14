@@ -1,4 +1,4 @@
-from discover.util import port_test, map_proxy_host
+from discover.util import port_test, map_proxy_host, init_shutdown_handler
 
 import os
 import argparse
@@ -7,7 +7,6 @@ import random
 import sys
 import yoda
 import time
-import signal
 
 __author__ = 'sukrit'
 
@@ -18,22 +17,16 @@ def yoda_client(parsed_args):
                        etcd_base=parsed_args.etcd_base)
 
 
-def create_deregister_handler(parsed_args):
-    """
-    Creates the SIGTERM and SIGINT handler.
-    """
-    def handler(*args, **kwargs):
-        yoda_cl = yoda_client(parsed_args)
-        logger.info("Removing proxy node on exit %s", parsed_args.node_name)
-        yoda_cl.remove_proxy_node(parsed_args.node_name)
-        sys.exit(0)
-    signal.signal(signal.SIGTERM, handler)
-    signal.signal(signal.SIGINT, handler)
+def on_delete(parsed_args):
+    yoda_cl = yoda_client(parsed_args)
+    logger.info("Removing proxy node on exit %s", parsed_args.node_name)
+    yoda_cl.remove_proxy_node(parsed_args.node_name)
 
 
-def discover_proxy_nodes(parsed_args):
-    create_deregister_handler(parsed_args)
-    while True:
+def discover_proxy_nodes(parsed_args, poll=None):
+    logger.info('Started discovery for proxy node: %s', parsed_args.node_name)
+    poll = poll or (lambda: True)
+    while poll():
         yoda_cl = yoda_client(parsed_args)
         port_test_passed = True
         for port in parsed_args.check_ports:
@@ -106,8 +99,7 @@ def main():
         parsed_args.check_ports = []
 
     parsed_args.proxy_host = map_proxy_host(parsed_args.proxy_host)
-    logger.info('Started yoda presence for  proxy node-> %s:%s',
-                parsed_args.node_name, parsed_args.proxy_host)
+    init_shutdown_handler(on_delete, args=(parsed_args,))
     discover_proxy_nodes(parsed_args)
 
 

@@ -9,7 +9,7 @@ import time
 from discover import logger
 from requests.exceptions import HTTPError
 
-from discover.util import map_proxy_host, health_test
+from discover.util import map_proxy_host, health_test, init_shutdown_handler
 
 # Polling interval in seconds
 DISCOVER_POLL_INTERVAL = 45
@@ -69,7 +69,8 @@ def get_container_info(docker_cl, node_name):
             raise
 
 
-def docker_container_poll(parsed_args):
+def docker_container_poll(parsed_args, poll=None):
+    logger.info('Started discovery for %s', parsed_args.node_name)
     docker_cl = docker_client(parsed_args)
     container_info = get_container_info(docker_cl, parsed_args.node_name)
     if not container_info:
@@ -95,7 +96,9 @@ def docker_container_poll(parsed_args):
     discover_ttl = int(parsed_env.get('DISCOVER_TTL', poll_interval*4+10))
     upstream_ttl = int(parsed_env.get('DISCOVER_UPSTREAM_TTL', '3600'))
 
-    while True:
+    poll = poll or (lambda: True)
+
+    while poll():
         container_info = get_container_info(docker_cl, parsed_args.node_name)
         if not container_info:
             return
@@ -177,8 +180,9 @@ def main():
     parsed_args = parser.parse_args()
     parsed_args.proxy_host = map_proxy_host(parsed_args.proxy_host)
 
-    logger.info('Started discovery for %s', parsed_args.node_name)
+    init_shutdown_handler()
     docker_container_poll(parsed_args)
+
 
 if __name__ == "__main__":
     main()

@@ -1,12 +1,15 @@
 import socket
 import re
+import signal
 from urllib.request import urlopen
 from boto.utils import get_instance_metadata
+import sys
 from discover import logger
 
 __author__ = 'sukrit'
 
 DEFAULT_TIMEOUT_MS = 2000
+DEFAULT_SHUTDOWN_POLL_SECONDS = 5
 DEFAULT_TIMEOUT = '2s'
 TIMEOUT_FORMAT = '^\\s*(\d+)(ms|h|m|s)\\s*$'
 
@@ -108,3 +111,18 @@ def map_proxy_host(proxy_host):
         meta_data = proxy_host.replace('ec2:meta-data:', '')
         return get_instance_metadata()[meta_data]
     return proxy_host
+
+
+def init_shutdown_handler(cleanup=None, args=None, kwargs=None):
+
+    def shutdown(_signo, _stack_frame):
+        logger.info('Shutdown cleanup started.')
+        if cleanup:
+            try:
+                cleanup(*(args or []), **(kwargs or {}))
+            except:
+                logger.exception('An error occurred during cleanup')
+        logger.info('Shutdown cleanup complete. Exiting with status 0')
+        sys.exit(0)
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
