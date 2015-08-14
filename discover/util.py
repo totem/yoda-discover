@@ -1,12 +1,17 @@
 import socket
 import re
+import signal
+from threading import Thread
 from urllib.request import urlopen
 from boto.utils import get_instance_metadata
+import sys
+import time
 from discover import logger
 
 __author__ = 'sukrit'
 
 DEFAULT_TIMEOUT_MS = 2000
+DEFAULT_SHUTDOWN_POLL_SECONDS = 5
 DEFAULT_TIMEOUT = '2s'
 TIMEOUT_FORMAT = '^\\s*(\d+)(ms|h|m|s)\\s*$'
 
@@ -108,3 +113,41 @@ def map_proxy_host(proxy_host):
         meta_data = proxy_host.replace('ec2:meta-data:', '')
         return get_instance_metadata()[meta_data]
     return proxy_host
+
+
+class ShutdownSafeScheduler:
+    _should_poll = True
+    _running = True
+
+    def __init__(self, check_interval_sec=DEFAULT_SHUTDOWN_POLL_SECONDS):
+        self.check_interval_sec = check_interval_sec
+        signal.signal(signal.SIGTERM, self._shutdown)
+        signal.signal(signal.SIGINT, self._shutdown)
+
+    def _shutdown(self, _signo, _stack_frame):
+        # Raises SystemExit(0):
+        self._should_poll = False
+        logger.info('Shutdown received.')
+        while self._running:
+            logger.info('Waiting for scheduler to finish')
+            time.sleep(self.check_interval_sec)
+        logger.info('Shutdown handler exiting application')
+        sys.exit(0)
+
+    def poll(self, cleanup=None):
+        if cleanup:
+            try:
+                cleanup()
+            except:
+                logger.exception('An error occurred during cleanup')
+        if not self._should_poll:
+            logger.info('Scheduler finished...')
+            self._running = False
+        return self._should_poll
+
+    def schedule_and_wait(self, target, *args, **kwargs):
+        kwargs.setdefault('poll', self.poll)
+        th = Thread(target=target, args=args, kwargs=kwargs)
+        th.start()
+        logger.info('Waiting for: {}'.format(target.__name__))
+        th.join()

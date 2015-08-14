@@ -15,14 +15,14 @@ def create_mock_args(etcd_host='mockhost', etcd_port=4001, etcd_base='/'):
 @patch('etcd.Client')
 def test_route53_sync_with_no_polling(m_etcd_cl, m_yoda_cl, m_route53):
     # Given: Polling function that returns false
-    should_poll = MagicMock()
-    should_poll.return_value = False
+    poll = MagicMock()
+    poll.return_value = False
 
     # And: Mock parsed arguments
     parsed_args = create_mock_args()
 
     # When: I perform route53 sync
-    route53_sync(parsed_args, should_poll=should_poll)
+    route53_sync(parsed_args, poll=poll)
 
     # Then: No sync is performed
     eq_(m_route53.called, False)
