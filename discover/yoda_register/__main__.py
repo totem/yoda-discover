@@ -38,14 +38,20 @@ def yoda_client(parsed_args):
 
 
 def do_register(parsed_args, app_name, app_version, private_port, public_port,
-                deployment_mode, ttl):
+                deployment_mode, ttl, service_name=None, node_num=None):
     use_version = app_version if deployment_mode == DEPLOYMENT_BLUE_GREEN \
         else None
     upstream = yoda.as_upstream(app_name, private_port,
                                 app_version=use_version)
     endpoint = yoda.as_endpoint(parsed_args.proxy_host, public_port)
-    yoda_client(parsed_args).discover_node(upstream, parsed_args.node_name,
-                                           endpoint, ttl=ttl)
+    meta = {}
+    if service_name:
+        meta['service-name'] = service_name
+    if node_num:
+        meta['node-num'] = node_num
+
+    yoda_client(parsed_args).discover_node(
+        upstream, parsed_args.node_name, endpoint, ttl=ttl, meta=meta)
 
 
 def renew_upstream(parsed_args, app_name, app_version, private_port,
@@ -133,7 +139,9 @@ def docker_container_poll(parsed_args, poll=None):
 
                     do_register(parsed_args, app_name, app_version,
                                 private_port, public_port, deployment_mode,
-                                ttl=discover_ttl)
+                                ttl=discover_ttl,
+                                node_num=parsed_args.node_num,
+                                service_name=parsed_args.service_name)
 
                 else:
                     logger.warn('Health check failed for node %s:%s->%s',
@@ -170,6 +178,14 @@ def create_parser():
         default=os.environ.get('PROXY_HOST', '172.17.42.1'),
         help='Docker URL (defaults to 172.17.42.1. For ec2 , you can also use '
              'metadata. e.g.: ec2:metadata:public-hostname)')
+    parser.add_argument(
+        '--node-num', metavar='<NODE_NUM>',
+        default=os.environ.get('NODE_NUM'),
+        help='Node number to be stored as meta-information during discovery')
+    parser.add_argument(
+        '--service-name', metavar='<SERVICE_NAME>',
+        default=os.environ.get('SERVICE_NAME'),
+        help='Service name to be stored as meta-information during discovery')
     parser.add_argument(
         'node_name', metavar='<NODE_NAME>', help='Node Name (Container Name)')
     return parser
