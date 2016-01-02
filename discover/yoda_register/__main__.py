@@ -164,11 +164,11 @@ def create_parser():
     parser.add_argument(
         '--etcd-host', metavar='<ETCD_HOST>',
         default=os.environ.get('ETCD_HOST', '172.17.42.1'),
-        help='Docker URL (defaults to 172.17.42.1)')
+        help='Etcd Host (defaults to 172.17.42.1)')
     parser.add_argument(
         '--etcd-port', metavar='<ETCD_PORT>',
         default=os.environ.get('ETCD_PORT', '4001'), type=int,
-        help='Docker URL (defaults to 4001)')
+        help='Etcd Port (defaults to 4001)')
     parser.add_argument(
         '--etcd-base', metavar='<ETCD_BASE>',
         default=os.environ.get('ETCD_BASE', '/yoda'),
@@ -176,7 +176,7 @@ def create_parser():
     parser.add_argument(
         '--proxy-host', metavar='<PROXY_HOST>',
         default=os.environ.get('PROXY_HOST', '172.17.42.1'),
-        help='Docker URL (defaults to 172.17.42.1. For ec2 , you can also use '
+        help='Proxy Host (defaults to 172.17.42.1. For ec2 , you can also use '
              'metadata. e.g.: ec2:metadata:public-hostname)')
     parser.add_argument(
         '--node-num', metavar='<NODE_NUM>',
