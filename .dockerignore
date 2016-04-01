@@ -1,0 +1,6 @@
+.git*
+tests
+.travis.yml
+*.md
+LICENSE
+dev-requirements.txt
