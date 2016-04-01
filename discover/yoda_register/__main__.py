@@ -100,7 +100,7 @@ def docker_container_poll(parsed_args, poll=None):
     # Set default ttl to 4 times the poll_interval (plus buffer) which
     # gives 4 chances for bad node to survive bad health test
     discover_ttl = int(parsed_env.get('DISCOVER_TTL', poll_interval*4+10))
-    upstream_ttl = int(parsed_env.get('DISCOVER_UPSTREAM_TTL', '3600'))
+    upstream_ttl = int(parsed_env.get('DISCOVER_UPSTREAM_TTL', '86400'))
 
     poll = poll or (lambda: True)
 
