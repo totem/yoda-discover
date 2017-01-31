@@ -115,6 +115,7 @@ def delete_route53(node_name, parsed_args):
         aws_secret_access_key=parsed_args.secret_access_key)
     records = conn.get_all_rrsets(parsed_args.zone_id,
                                   name=parsed_args.dns_record,
+                                  type=parsed_args.record_type,
                                   identifier=node_name, maxitems=1)
     changes = ResourceRecordSets(conn, parsed_args.zone_id)
     change = changes.add_change(
