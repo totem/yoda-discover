@@ -28,5 +28,5 @@ RUN apk add --no-cache --update --virtual build-dependencies \
 ADD . /opt/yoda-discover
 
 WORKDIR /opt/yoda-discover
-ENTRYPOINT ["/usr/bin/python3","-m"]
+ENTRYPOINT ["/usr/local/bin/python3","-m"]
 CMD ["discover.docker_poller"]
