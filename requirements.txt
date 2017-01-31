@@ -1,4 +1,4 @@
 APScheduler==3.0.0
 docker-py==0.4.0
-https://github.com/totem/yoda-py/archive/v0.1.6.tar.gz
+https://github.com/totem/yoda-py/archive/v0.1.8b2.tar.gz
 boto==2.43.0
