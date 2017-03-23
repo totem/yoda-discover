@@ -192,7 +192,7 @@ def create_parser():
         help='Service name to be stored as meta-information during discovery')
     parser.add_argument(
         '--discover-name', metavar='<DISCOVER_NAME>',
-        default=uuid.uuidv4(),
+        default=uuid.uuid4(),
         help='Node name to be used for discovery. If not specified a random '
              'uuid is used')
     parser.add_argument(
