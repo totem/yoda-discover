@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 
 import yoda
 import argparse
@@ -51,7 +52,7 @@ def do_register(parsed_args, app_name, app_version, private_port, public_port,
         meta['node-num'] = node_num
 
     yoda_client(parsed_args).discover_node(
-        upstream, parsed_args.node_name, endpoint, ttl=ttl, meta=meta)
+        upstream, parsed_args.discover_name, endpoint, ttl=ttl, meta=meta)
 
 
 def renew_upstream(parsed_args, app_name, app_version, private_port,
@@ -76,7 +77,8 @@ def get_container_info(docker_cl, node_name):
 
 
 def docker_container_poll(parsed_args, poll=None):
-    logger.info('Started discovery for %s', parsed_args.node_name)
+    logger.info('Started discovery for %s (discover_name: %s)',
+                parsed_args.node_name, parsed_args.discover_name)
     docker_cl = docker_client(parsed_args)
     container_info = get_container_info(docker_cl, parsed_args.node_name)
     if not container_info:
@@ -134,8 +136,10 @@ def docker_container_poll(parsed_args, poll=None):
                     endpoint = yoda.as_endpoint(parsed_args.proxy_host,
                                                 public_port)
 
-                    logger.info('Publishing %s : %s',
-                                parsed_args.node_name, endpoint)
+                    logger.info('Publishing %s (%s) : %s',
+                                parsed_args.node_name,
+                                parsed_args.discover_name,
+                                endpoint)
 
                     do_register(parsed_args, app_name, app_version,
                                 private_port, public_port, deployment_mode,
@@ -187,7 +191,13 @@ def create_parser():
         default=os.environ.get('SERVICE_NAME'),
         help='Service name to be stored as meta-information during discovery')
     parser.add_argument(
-        'node_name', metavar='<NODE_NAME>', help='Node Name (Container Name)')
+        '--discover-name', metavar='<DISCOVER_NAME>',
+        default=uuid.uuid4(),
+        help='Node name to be used for discovery. If not specified a random '
+             'uuid is used')
+    parser.add_argument(
+        'node_name', metavar='<NODE_NAME>',
+        help='Container name to be discovered')
     return parser
 
 
